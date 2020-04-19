@@ -46,9 +46,10 @@ pub struct SparseVoxelOctree {
 }
 
 struct RayData {
-    pub hit_idx: usize,
-    pub visit_cnt: u32,
-    pub a: usize,
+    hit_idx: usize,
+    visit_cnt: u32,
+    a: usize,
+    hit_pos: Point3<f32>,
 }
 
 impl SparseVoxelOctree {
@@ -76,7 +77,6 @@ impl SparseVoxelOctree {
                 let color = (cx[i] | (cy[i] << 8) | (cz[i] << 16)) as u32;
                 if half_size != 1 {
                     let child_idx = self.build_octree(voxel_grid, cx[i], cy[i], cz[i], half_size);
-                    // set child pointer
                     self.node_pool[node_tile_idx + i].set(false, false, child_idx, color);
                 } else {
                     self.node_pool[node_tile_idx + i].set(false, true, 0x3fffffff, color);
@@ -154,6 +154,9 @@ impl SparseVoxelOctree {
 
         if node.is_leaf() {
             ray_data.hit_idx = idx;
+            ray_data.hit_pos.x = tx0;
+            ray_data.hit_pos.y = ty0;
+            ray_data.hit_pos.z = tz0;
             return true;
         }
 
@@ -209,10 +212,6 @@ impl SparseVoxelOctree {
         }
         return true;
     }
-
-    pub fn translate(&mut self, translation: Vector3<f32>) {
-        self.model = self.model * Matrix4::from_translation(translation);
-    }
 }
 
 impl Renderable for SparseVoxelOctree {
@@ -221,10 +220,10 @@ impl Renderable for SparseVoxelOctree {
             hit_idx: 0,
             visit_cnt: 0,
             a: 0,
+            hit_pos: Point3::origin(),
         };
         let mut origin = self.model.transform_point(origin);
         let mut dir = self.model.transform_vector(dir);
-
         if dir.x < 0.0 {
             origin.x = self.size.x - origin.x;
             dir.x = -dir.x;
@@ -252,7 +251,33 @@ impl Renderable for SparseVoxelOctree {
             if self.proc_subtree(tx0, ty0, tz0, tx1, ty1, tz1, 0, &mut ray_data) {
                 result.visit_cnt = ray_data.visit_cnt;
                 result.color = self.node_pool[ray_data.hit_idx].color;
-                //result.normal = self.node_pool[ray_data.hit_idx].normal;
+                let tx0 = ray_data.hit_pos.x;
+                let ty0 = ray_data.hit_pos.y;
+                let tz0 = ray_data.hit_pos.z;
+                let face;
+                if tx0 > ty0 && tx0 > tz0 {
+                    face = 0 | (ray_data.a & 4);
+                } else if ty0 > tx0 && ty0 > tz0 {
+                    face = 1 | (ray_data.a & 2);
+                } else {
+                    face = 2 | ((ray_data.a & 1) << 2);
+                }
+                match face {
+                    // left
+                    0 => result.normal.x = -1.0,
+                    // bottom
+                    1 => result.normal.y = -1.0,
+                    // front
+                    2 => result.normal.z = 1.0,
+                    // top
+                    3 => result.normal.y = 1.0,
+                    // right side
+                    4 => result.normal.x = 1.0,
+                    // back
+                    6 => result.normal.z = -1.0,
+                    _ => println!("Invalid value for cube face."),
+                }
+                result.normal = self.model.transform_vector(result.normal);
                 return true;
             } else {
                 return false;
@@ -260,6 +285,10 @@ impl Renderable for SparseVoxelOctree {
         } else {
             return false;
         }
+    }
+
+    fn get_model(&self) -> &Matrix4<f32> {
+        return &self.model;
     }
 }
 
