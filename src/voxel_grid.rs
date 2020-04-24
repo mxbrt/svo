@@ -19,8 +19,12 @@ impl VoxelGrid {
         false
     }
 
-    pub fn from_csv(path: String, size: usize) -> Result<VoxelGrid, Box<dyn std::error::Error>> {
-        let mut csv_reader = csv::Reader::from_path(path)?;
+    pub fn from_csv(path: String) -> Result<VoxelGrid, Box<dyn std::error::Error>> {
+        let mut csv_reader = csv::Reader::from_path(&path)?;
+        let size_start = path.find("_").unwrap() + 1;
+        let size_end = path.find(".").unwrap();
+        let size_str = &path[size_start..size_end];
+        let size = size_str.parse::<usize>().unwrap();
         let mut data = vec![vec![vec![false; size]; size]; size];
         for result in csv_reader.deserialize() {
             let coords: Point3<usize> = result?;

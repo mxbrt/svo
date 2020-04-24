@@ -3,37 +3,30 @@ use cgmath::{prelude::*, Point3, Vector3};
 use crate::raycast::{RaycastHit, Raycastable};
 use crate::voxel_grid::VoxelGrid;
 
-#[derive(Clone, Copy)]
-pub struct Node {
-    pub children: u32,
-    pub color: u32,
+pub type Node = [u32; 2];
+
+fn create_node() -> Node {
+    [
+        1 << 31, // default is an empty node
+        0,
+    ]
 }
 
-impl Node {
-    fn new() -> Node {
-        Node {
-            children: 1 << 31, // default is an empty node
-            color: 0,
-        }
-    }
+fn set_node(node: &mut Node, is_empty: bool, is_leaf: bool, children: usize, color: u32) {
+    node[0] = ((is_empty as u32) << 31) | ((is_leaf as u32) << 30) | (children as u32 & 0x3fffffff);
+    node[1] = color;
+}
 
-    fn set(&mut self, is_empty: bool, is_leaf: bool, children: usize, color: u32) {
-        self.children =
-            ((is_empty as u32) << 31) | ((is_leaf as u32) << 30) | (children as u32 & 0x3fffffff);
-        self.color = color;
-    }
+fn is_empty(node: &Node) -> bool {
+    (node[0] & 0x80000000) != 0
+}
 
-    fn is_empty(&self) -> bool {
-        (self.children & 0x80000000) != 0
-    }
+fn is_leaf(node: &Node) -> bool {
+    (node[0] & 0x40000000) != 0
+}
 
-    fn is_leaf(&self) -> bool {
-        (self.children & 0x40000000) != 0
-    }
-
-    fn child_idx(&self) -> usize {
-        (self.children & 0x3fffffff) as usize
-    }
+fn child_idx(node: &Node) -> usize {
+    (node[0] & 0x3fffffff) as usize
 }
 
 #[derive(Clone)]
@@ -60,17 +53,29 @@ impl SparseVoxelOctree {
              [z + half_size, z + half_size, z + half_size, z + half_size, z, z, z, z]);
 
         let node_tile_idx = self.node_pool.len();
-        self.node_pool.append(&mut vec![Node::new(); 8]);
+        self.node_pool.append(&mut vec![create_node(); 8]);
 
         for i in 0..8 {
             if voxel_grid.sample(cx[i], cy[i], cz[i], half_size) {
-                //let color = (cx[i] | (cy[i] << 8) | (cz[i] << 16)) as u32;
-                let color = 0xFFFFFF;
+                let color = (cx[i] | (cy[i] << 8) | (cz[i] << 16)) as u32;
+                //let color = 0xFFFFFF;
                 if half_size != 1 {
                     let child_idx = self.build_octree(voxel_grid, cx[i], cy[i], cz[i], half_size);
-                    self.node_pool[node_tile_idx + i].set(false, false, child_idx, color);
+                    set_node(
+                        &mut self.node_pool[node_tile_idx + i],
+                        false,
+                        false,
+                        child_idx,
+                        color,
+                    );
                 } else {
-                    self.node_pool[node_tile_idx + i].set(false, true, 0x3fffffff, color);
+                    set_node(
+                        &mut self.node_pool[node_tile_idx + i],
+                        false,
+                        true,
+                        0x3fffffff,
+                        color,
+                    );
                 }
             }
         }
@@ -175,10 +180,10 @@ impl SparseVoxelOctree {
             let tc_max = tx_corner.min(ty_corner).min(tz_corner);
 
             // Process voxel if it exists and the active t-span is non-empty.
-            let child_idx = cur_node.child_idx() + (idx ^ octant_mask) as usize;
+            let child_idx = child_idx(&cur_node) + (idx ^ octant_mask) as usize;
             let child = self.node_pool[child_idx];
 
-            if !child.is_empty() && t_min <= t_max {
+            if !is_empty(&child) && t_min <= t_max {
                 //// TODO Terminate if the voxel is small enough.
                 //if tc_max * ray_size_coef + ray_size_bias >= scale_exp2 {
                 //break;
@@ -195,7 +200,7 @@ impl SparseVoxelOctree {
 
                 // Descend to the first child if the resulting t-span is non-empty.
                 if t_min <= tv_max {
-                    if child.is_leaf() {
+                    if is_leaf(&child) {
                         cur_node = child;
                         break;
                     }
@@ -324,7 +329,7 @@ impl SparseVoxelOctree {
         }
 
         *t = t_min;
-        *color = cur_node.color;
+        *color = cur_node[1];
         return true;
     }
 }
@@ -352,9 +357,15 @@ impl From<&VoxelGrid> for SparseVoxelOctree {
             node_pool: Vec::<Node>::new(),
             size: Vector3::new(1.0, 1.0, 1.0),
         };
-        svo.node_pool.push(Node::new());
-        svo.node_pool[0].set(false, false, 1, 0xFF00FF);
+        svo.node_pool.push(create_node());
+        set_node(&mut svo.node_pool[0], false, false, 1, 0xFF00FF);
         svo.build_octree(&voxel_grid, 0, 0, 0, voxel_grid.size);
         return svo;
+    }
+}
+
+impl SparseVoxelOctree {
+    pub fn size_bytes(&self) -> usize {
+        std::mem::size_of::<Node>() * self.node_pool.len()
     }
 }
