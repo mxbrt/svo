@@ -1,58 +1,48 @@
-use cgmath::prelude::*;
-use cgmath::{Point3, Vector3};
+use cgmath::{prelude::*, Point3, Vector3};
+use specs::{prelude::*, Component};
 
-pub trait Light {
-    fn intensity(&self, hit_point: Point3<f32>) -> f32;
-    fn direction_from(&self, hit_point: Point3<f32>) -> Vector3<f32>;
-    fn color(&self) -> Vector3<f32>;
-    fn distance(&self, hit_point: Point3<f32>) -> f32;
+use crate::transform::TransformComponent;
+
+pub enum LightType {
+    SphericalLight,
+    DirectionalLight,
 }
 
-pub struct DirectionalLight {
-    pub direction: Vector3<f32>,
+#[derive(Component)]
+pub struct LightComponent {
+    pub light_type: LightType,
     pub intensity: f32,
     pub color: Vector3<f32>,
 }
 
-pub struct SphericalLight {
-    pub position: Point3<f32>,
-    pub intensity: f32,
-    pub color: Vector3<f32>,
-}
-
-impl Light for SphericalLight {
-    fn intensity(&self, hit_point: Point3<f32>) -> f32 {
-        let r2 = (self.position - hit_point).magnitude2();
-        self.intensity / (4.0 * std::f32::consts::PI * r2)
+impl LightComponent {
+    pub fn intensity(&self, transform: &TransformComponent, point: Point3<f32>) -> f32 {
+        match self.light_type {
+            LightType::DirectionalLight => self.intensity,
+            LightType::SphericalLight => {
+                let r2 = (transform.position - point).magnitude2();
+                self.intensity / (4.0 * std::f32::consts::PI * r2)
+            }
+        }
     }
 
-    fn direction_from(&self, hit_point: Point3<f32>) -> Vector3<f32> {
-        (self.position - hit_point).normalize()
+    pub fn direction_from(
+        &self,
+        transform: &TransformComponent,
+        point: Point3<f32>,
+    ) -> Vector3<f32> {
+        match self.light_type {
+            LightType::DirectionalLight => {
+                -(transform.rotation * Vector3::<f32>::new(1.0, 1.0, 1.0)).normalize()
+            }
+            LightType::SphericalLight => (transform.position - point).normalize(),
+        }
     }
 
-    fn color(&self) -> Vector3<f32> {
-        self.color
-    }
-
-    fn distance(&self, hit_point: Point3<f32>) -> f32 {
-        (self.position - hit_point).magnitude()
-    }
-}
-
-impl Light for DirectionalLight {
-    fn intensity(&self, _: Point3<f32>) -> f32 {
-        self.intensity
-    }
-
-    fn direction_from(&self, _: Point3<f32>) -> Vector3<f32> {
-        -self.direction.normalize()
-    }
-
-    fn color(&self) -> Vector3<f32> {
-        self.color
-    }
-
-    fn distance(&self, _: Point3<f32>) -> f32 {
-        std::f32::INFINITY
+    pub fn distance(&self, transform: &TransformComponent, point: Point3<f32>) -> f32 {
+        match self.light_type {
+            LightType::DirectionalLight => std::f32::INFINITY,
+            LightType::SphericalLight => (transform.position - point).magnitude(),
+        }
     }
 }

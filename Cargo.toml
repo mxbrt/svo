@@ -12,3 +12,4 @@ serde = "1.0.105"
 csv = "1.1"
 rayon="1.1"
 minifb = "0.16"
+specs = { version = "0.16.1", features = ["specs-derive"] }
