@@ -1,4 +1,4 @@
-use cgmath::{prelude::*, Point3, Vector3};
+use nalgebra::{base::Vector3, geometry::Point3};
 
 use crate::raycast::{RaycastHit, Raycastable};
 use crate::voxel_grid::VoxelGrid;
@@ -337,12 +337,12 @@ impl SparseVoxelOctree {
 impl Raycastable for SparseVoxelOctree {
     fn raycast(&self, origin: Point3<f32>, dir: Vector3<f32>) -> Option<RaycastHit> {
         let mut color = 0;
-        let mut normal = Vector3::zero();
+        let mut normal = Vector3::zeros();
         let mut t = 0.0;
         if self.raymarch(origin, dir, &mut t, &mut color, &mut normal) {
             return Some(RaycastHit {
-                color: color,
-                normal: normal,
+                color,
+                normal,
                 pos: origin + t * dir,
             });
         } else {

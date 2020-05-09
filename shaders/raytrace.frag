@@ -8,7 +8,7 @@ layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 0) uniform Globals {
     mat4 camera_rotation;
-    vec3 camera_position;
+    vec4 camera_position;
     uint width;
     uint height;
     float aspect_ratio;
@@ -202,9 +202,9 @@ void main() {
     float t;
     vec3 color;
     vec3 normal;
-    bool hit = loop(camera_position, dir, t, color, normal);
+    bool hit = loop(camera_position.xyz, dir, t, color, normal);
     if (hit) {
-        vec3 hit_point = (camera_position + t * dir);
+        vec3 hit_point = (camera_position.xyz + t * dir);
         outColor = vec4(shade(color, normal, hit_point),1.0);
     } else {
         outColor = vec4(1.0);

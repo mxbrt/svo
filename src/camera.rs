@@ -1,7 +1,7 @@
-use cgmath::{Deg, Matrix4, Point3};
+use nalgebra::{base::Matrix4, geometry::Point4};
 
 pub struct Camera {
-    pub position: Point3<f32>,
+    pub position: Point4<f32>,
     pub rotation: Matrix4<f32>,
     pub fov: f32,
 }
@@ -9,8 +9,8 @@ pub struct Camera {
 impl Camera {
     pub fn new() -> Camera {
         Camera {
-            position: Point3::new(0.0, 0.0, -3.0),
-            rotation: Matrix4::from_angle_y(Deg(0.0)),
+            position: Point4::origin(),
+            rotation: Matrix4::identity(),
             fov: 60.0,
         }
     }

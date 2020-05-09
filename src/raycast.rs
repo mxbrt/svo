@@ -1,4 +1,4 @@
-use cgmath::{Point3, Vector3};
+use nalgebra::{base::Vector3, geometry::Point3};
 
 pub struct RaycastHit {
     pub color: u32,

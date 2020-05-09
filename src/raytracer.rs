@@ -6,7 +6,7 @@ use crate::svo::SparseVoxelOctree;
 #[derive(Clone, Copy, Default)]
 struct RaytracerShaderUniforms {
     camera_rotation: [[f32; 4]; 4],
-    camera_origin: [f32; 3],
+    camera_origin: [f32; 4],
     width: u32,
     height: u32,
     aspect_ratio: f32,
@@ -133,7 +133,7 @@ impl Raytracer {
     ) {
         let raytracer_uniform = RaytracerShaderUniforms {
             camera_rotation: *camera.rotation.as_ref(),
-            camera_origin: *camera.position.as_ref(),
+            camera_origin: *camera.position.coords.as_ref(),
             width,
             height,
             aspect_ratio: width as f32 / height as f32,

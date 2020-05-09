@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cgmath = { version = "0.17.0", features = ["serde", "swizzle"] }
+nalgebra = { version = "0.21.0", features = ["serde-serialize"] }
 serde = "1.0.105"
 csv = "1.1"
 

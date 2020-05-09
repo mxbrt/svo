@@ -1,4 +1,4 @@
-use cgmath::Point3;
+use nalgebra::geometry::Point3;
 
 pub struct VoxelGrid {
     pub data: Vec<Vec<Vec<bool>>>,

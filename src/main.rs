@@ -1,8 +1,6 @@
 use std::convert::From;
 use std::f32;
 
-use cgmath::{prelude::*, Deg, Matrix4, Vector3};
-
 mod camera;
 mod raycast;
 mod raytracer;
@@ -21,6 +19,7 @@ use util::clamp;
 use voxel_grid::VoxelGrid;
 use window::{RenderContext, WindowContext};
 
+use nalgebra::base::{Matrix4, Vector4};
 use winit::{
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -55,7 +54,7 @@ fn main() {
     let raytracer = Raytracer::new(&mut window.device, &svo);
 
     // main event loop
-    let mut camera_velocity = Vector3::zero();
+    let mut camera_velocity = Vector4::new(0.0, 0.0, 0.0, 0.0);
     let mut pitch = 0.0;
     let mut yaw = 0.0;
     let mut delta = 0.0;
@@ -124,8 +123,8 @@ fn main() {
             Event::MainEventsCleared => window.window.request_redraw(),
             Event::RedrawRequested(_) => {
                 camera.rotation =
-                    Matrix4::from_angle_y(Deg(yaw)) * Matrix4::from_angle_x(Deg(pitch));
-                camera.position += camera.rotation.transform_vector(camera_velocity * delta);
+                    Matrix4::from_euler_angles(pitch.to_radians(), yaw.to_radians(), 0.0);
+                camera.position += camera.rotation * camera_velocity * delta;
                 let frame = match render_context.swap_chain.get_next_texture() {
                     Ok(frame) => frame,
                     Err(e) => {
