@@ -3,35 +3,34 @@ use nalgebra::{base::Vector3, geometry::Point3};
 use crate::raycast::{RaycastHit, Raycastable};
 use crate::voxel_grid::VoxelGrid;
 
-type Node = [u32; 2];
+type SVONode = [u32; 2];
 
-fn create_node() -> Node {
+fn create_node() -> SVONode {
     [
         1 << 31, // default is an empty node
         0,
     ]
 }
 
-fn set_node(node: &mut Node, is_empty: bool, is_leaf: bool, children: usize, color: u32) {
+fn set_node(node: &mut SVONode, is_empty: bool, is_leaf: bool, children: usize, color: u32) {
     node[0] = ((is_empty as u32) << 31) | ((is_leaf as u32) << 30) | (children as u32 & 0x3fffffff);
     node[1] = color;
 }
 
-fn is_empty(node: &Node) -> bool {
+fn is_empty(node: &SVONode) -> bool {
     (node[0] & 0x80000000) != 0
 }
 
-fn is_leaf(node: &Node) -> bool {
+fn is_leaf(node: &SVONode) -> bool {
     (node[0] & 0x40000000) != 0
 }
 
-fn child_idx(node: &Node) -> usize {
+fn child_idx(node: &SVONode) -> usize {
     (node[0] & 0x3fffffff) as usize
 }
 
-#[derive(Clone)]
 pub struct SparseVoxelOctree {
-    pub node_pool: Vec<Node>,
+    pub node_pool: Vec<SVONode>,
 }
 
 impl SparseVoxelOctree {
@@ -353,7 +352,7 @@ impl Raycastable for SparseVoxelOctree {
 impl From<&VoxelGrid> for SparseVoxelOctree {
     fn from(voxel_grid: &VoxelGrid) -> SparseVoxelOctree {
         let mut svo = SparseVoxelOctree {
-            node_pool: Vec::<Node>::new(),
+            node_pool: Vec::<SVONode>::new(),
         };
         svo.node_pool.push(create_node());
         set_node(&mut svo.node_pool[0], false, false, 1, 0xFF00FF);
@@ -364,6 +363,6 @@ impl From<&VoxelGrid> for SparseVoxelOctree {
 
 impl SparseVoxelOctree {
     pub fn size_bytes(&self) -> usize {
-        std::mem::size_of::<Node>() * self.node_pool.len()
+        std::mem::size_of::<SVONode>() * self.node_pool.len()
     }
 }
