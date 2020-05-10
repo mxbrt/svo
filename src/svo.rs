@@ -3,7 +3,7 @@ use nalgebra::{base::Vector3, geometry::Point3};
 use crate::raycast::{RaycastHit, Raycastable};
 use crate::voxel_grid::VoxelGrid;
 
-pub type Node = [u32; 2];
+type Node = [u32; 2];
 
 fn create_node() -> Node {
     [
@@ -32,7 +32,6 @@ fn child_idx(node: &Node) -> usize {
 #[derive(Clone)]
 pub struct SparseVoxelOctree {
     pub node_pool: Vec<Node>,
-    pub size: Vector3<f32>,
 }
 
 impl SparseVoxelOctree {
@@ -355,7 +354,6 @@ impl From<&VoxelGrid> for SparseVoxelOctree {
     fn from(voxel_grid: &VoxelGrid) -> SparseVoxelOctree {
         let mut svo = SparseVoxelOctree {
             node_pool: Vec::<Node>::new(),
-            size: Vector3::new(1.0, 1.0, 1.0),
         };
         svo.node_pool.push(create_node());
         set_node(&mut svo.node_pool[0], false, false, 1, 0xFF00FF);

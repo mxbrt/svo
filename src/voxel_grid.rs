@@ -30,9 +30,6 @@ impl VoxelGrid {
             let coords: Point3<usize> = result?;
             data[coords.x][coords.y][coords.z] = true;
         }
-        Ok(VoxelGrid {
-            data: data,
-            size: size,
-        })
+        Ok(VoxelGrid { data, size })
     }
 }
