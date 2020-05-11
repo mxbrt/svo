@@ -1,4 +1,4 @@
-use nalgebra::{base::Vector3, geometry::Point3};
+use na::{base::Vector3, geometry::Point3};
 
 use crate::raycast::{RaycastHit, Raycastable};
 use crate::voxel_grid::VoxelGrid;

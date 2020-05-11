@@ -1,7 +1,9 @@
 use std::convert::From;
 use std::f32;
 
+mod bvh;
 mod camera;
+mod morton;
 mod raycast;
 mod raytracer;
 mod shader;
@@ -19,7 +21,7 @@ use util::clamp;
 use voxel_grid::VoxelGrid;
 use window::{RenderContext, WindowContext};
 
-use nalgebra::base::{Matrix4, Vector4};
+use na::base::{Matrix4, Vector4};
 use winit::{
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -32,7 +34,6 @@ fn main() {
         std::process::exit(1);
     }
     let model_path = &args[1];
-
     // build svo
     let svo = {
         let voxel_grid = VoxelGrid::from_csv(model_path.to_string()).unwrap();
@@ -59,6 +60,24 @@ fn main() {
     let mut yaw = 0.0;
     let mut delta = 0.0;
     let mut delta_time = previous.elapsed();
+
+    let n = 6;
+    let mut objects = Vec::<(u32, na::Similarity3<f32>)>::new();
+    for x in 0..n {
+        for y in 0..n {
+            for z in 0..n {
+                objects.push((
+                    0,
+                    na::Similarity3::from_parts(
+                        na::Translation3::new(x as f32, y as f32, z as f32),
+                        na::geometry::Rotation3::identity().into(),
+                        1.0,
+                    ),
+                ));
+            }
+        }
+    }
+
     event_loop.run(move |event, _, control_flow| {
         imgui
             .platform
@@ -136,6 +155,16 @@ fn main() {
                 let mut encoder: wgpu::CommandEncoder = window
                     .device
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                let bvh = {
+                    for object in &mut objects {
+                        object.1.append_rotation_wrt_point_mut(
+                            &na::geometry::Rotation3::from_euler_angles(0.0, 0.0008, 0.0).into(),
+                            &object.1.isometry.translation.vector.into(),
+                        );
+                    }
+                    bvh::BoundingVolumeHierarchy::new(&objects)
+                };
+
                 raytracer.render(
                     &mut window.device,
                     &mut encoder,
@@ -143,6 +172,7 @@ fn main() {
                     width,
                     height,
                     &camera,
+                    &bvh,
                 );
                 imgui.render(
                     &mut window.device,

@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nalgebra = { version = "0.21.0", features = ["serde-serialize"] }
+na = { package = "nalgebra", version = "0.21.0", features = ["serde-serialize"] }
 serde = "1.0.105"
 csv = "1.1"
 
@@ -15,6 +15,7 @@ csv = "1.1"
 futures = "0.3"
 wgpu = "0.5"
 glsl-to-spirv = "0.1.7"
+glsl-layout = "0.3.2"
 
 # gui
 clipboard = "0.5"

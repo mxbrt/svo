@@ -1,9 +1,9 @@
+use crate::bvh;
 use crate::camera::Camera;
 use crate::shader;
 use crate::svo::SparseVoxelOctree;
 
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, glsl_layout::AsStd140)]
 struct RaytracerShaderUniforms {
     camera_rotation: [[f32; 4]; 4],
     camera_origin: [f32; 4],
@@ -11,6 +11,7 @@ struct RaytracerShaderUniforms {
     height: u32,
     aspect_ratio: f32,
     fov: f32,
+    bvh_root: u32,
 }
 
 unsafe impl bytemuck::Pod for RaytracerShaderUniforms {}
@@ -19,6 +20,8 @@ unsafe impl bytemuck::Zeroable for RaytracerShaderUniforms {}
 pub struct Raytracer {
     uniform_buffer: wgpu::Buffer,
     _svo_buffer: wgpu::Buffer,
+    bvh_node_buffer: wgpu::Buffer,
+    bvh_leaf_buffer: wgpu::Buffer,
     render_pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
 }
@@ -33,10 +36,24 @@ impl Raytracer {
             size: std::mem::size_of::<RaytracerShaderUniforms>() as u64,
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
         });
-        let svo_buffer = device.create_buffer_with_data(
-            bytemuck::cast_slice(&svo.node_pool[..]),
-            wgpu::BufferUsage::STORAGE_READ,
-        );
+        let svo_bytes = bytemuck::cast_slice(&svo.node_pool[..]);
+        let svo_buffer = device.create_buffer_with_data(svo_bytes, wgpu::BufferUsage::STORAGE_READ);
+
+        // for now, we allow a maximum of 16384 rendered objects.
+        let bvh_max_leafs = 2u64.pow(16);
+        let bvh_max_nodes = bvh_max_leafs * 2 - 1;
+        let bvh_node_bufsize = bvh_max_nodes * std::mem::size_of::<bvh::BVHNode>() as u64;
+        let bvh_leaf_bufsize = bvh_max_leafs * std::mem::size_of::<bvh::BVHLeaf>() as u64;
+        let bvh_node_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: bvh_node_bufsize,
+            usage: wgpu::BufferUsage::STORAGE_READ | wgpu::BufferUsage::COPY_DST,
+        });
+        let bvh_leaf_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: bvh_leaf_bufsize,
+            usage: wgpu::BufferUsage::STORAGE_READ | wgpu::BufferUsage::COPY_DST,
+        });
 
         let bindgroup_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             bindings: &[
@@ -47,6 +64,22 @@ impl Raytracer {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::StorageBuffer {
+                        dynamic: false,
+                        readonly: true,
+                    },
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::StorageBuffer {
+                        dynamic: false,
+                        readonly: true,
+                    },
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
                     visibility: wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::StorageBuffer {
                         dynamic: false,
@@ -107,7 +140,21 @@ impl Raytracer {
                     binding: 1,
                     resource: wgpu::BindingResource::Buffer {
                         buffer: &svo_buffer,
-                        range: 0..svo.size_bytes() as u64,
+                        range: 0..svo_bytes.len() as u64,
+                    },
+                },
+                wgpu::Binding {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &bvh_node_buffer,
+                        range: 0..bvh_node_bufsize,
+                    },
+                },
+                wgpu::Binding {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &bvh_leaf_buffer,
+                        range: 0..bvh_leaf_bufsize,
                     },
                 },
             ],
@@ -117,6 +164,8 @@ impl Raytracer {
         Raytracer {
             uniform_buffer,
             _svo_buffer: svo_buffer,
+            bvh_node_buffer,
+            bvh_leaf_buffer,
             render_pipeline,
             bind_group,
         }
@@ -130,22 +179,47 @@ impl Raytracer {
         width: u32,
         height: u32,
         camera: &Camera,
+        bvh: &bvh::BoundingVolumeHierarchy,
     ) {
-        let raytracer_uniform = RaytracerShaderUniforms {
-            camera_rotation: *camera.rotation.as_ref(),
-            camera_origin: *camera.position.coords.as_ref(),
-            width,
-            height,
-            aspect_ratio: width as f32 / height as f32,
-            fov: f32::tan(camera.fov.to_radians() / 2.0),
-        };
-
         {
+            let bvh_node_bytes = bytemuck::cast_slice(&bvh.nodes[..]);
+            let bvh_leaf_bytes = bytemuck::cast_slice(&bvh.leafs[..]);
+            let tmp_bvh_node_buffer =
+                device.create_buffer_with_data(bvh_node_bytes, wgpu::BufferUsage::COPY_SRC);
+            let tmp_bvh_leaf_buffer =
+                device.create_buffer_with_data(bvh_leaf_bytes, wgpu::BufferUsage::COPY_SRC);
+
+            encoder.copy_buffer_to_buffer(
+                &tmp_bvh_node_buffer,
+                0,
+                &self.bvh_node_buffer,
+                0,
+                bvh_node_bytes.len() as wgpu::BufferAddress,
+            );
+            encoder.copy_buffer_to_buffer(
+                &tmp_bvh_leaf_buffer,
+                0,
+                &self.bvh_leaf_buffer,
+                0,
+                bvh_leaf_bytes.len() as wgpu::BufferAddress,
+            );
+
+            let raytracer_uniform = RaytracerShaderUniforms {
+                camera_rotation: *camera.rotation.as_ref(),
+                camera_origin: *camera.position.coords.as_ref(),
+                width,
+                height,
+                aspect_ratio: width as f32 / height as f32,
+                fov: f32::tan(camera.fov.to_radians() / 2.0),
+                bvh_root: bvh.root,
+            };
+
             let uniform_size = std::mem::size_of::<RaytracerShaderUniforms>() as u64;
             let tmp_uniform_buffer = device.create_buffer_with_data(
                 bytemuck::bytes_of(&raytracer_uniform),
                 wgpu::BufferUsage::COPY_SRC,
             );
+
             encoder.copy_buffer_to_buffer(
                 &tmp_uniform_buffer,
                 0,

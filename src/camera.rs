@@ -1,4 +1,4 @@
-use nalgebra::{base::Matrix4, geometry::Point4};
+use na::{base::Matrix4, geometry::Point4};
 
 pub struct Camera {
     pub position: Point4<f32>,

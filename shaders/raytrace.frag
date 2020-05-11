@@ -1,26 +1,48 @@
 #version 450
 #define STACK_SIZE 23
+#define BVH_STACK_SIZE 64
 #define PI 3.1415926535897932384626433832795
 #define EPS 1e-4
 
 layout(location = 0) in vec2 v_TexCoord;
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 0) uniform Globals {
+layout(set = 0, binding = 0, std140) uniform Globals {
     mat4 camera_rotation;
     vec4 camera_position;
     uint width;
     uint height;
     float aspect_ratio;
     float fov;
+    uint bvh_root;
 };
 
 layout(set = 0, binding = 1) readonly buffer SvoBuffer {
     uint svo_data[];
 };
 
+struct BVHNode {
+    vec4 center;
+    float radius;
+    uint left_child;
+    uint right_child;
+};
+
+struct BVHLeaf {
+    mat4 inv_model;
+    uint address;
+};
+
+layout(set = 0, binding = 2) readonly buffer BVHNodes {
+    BVHNode bvh_nodes[];
+};
+
+layout(set = 0, binding = 3) readonly buffer BVHLeafs {
+    BVHLeaf bvh_leafs[];
+};
+
 struct StackItem { uint node; float t_max; } stack[STACK_SIZE];
-bool raymarch(vec3 o, vec3 d, out float o_t, out vec3 o_color, out vec3 o_normal) {
+bool raymarch(vec3 o, vec3 d, float bvh_t_min, out float o_t, out vec3 o_color, out vec3 o_normal) {
     o += 1;
     d.x = abs(d.x) > EPS ? d.x : (d.x >= 0 ? EPS : -EPS);
     d.y = abs(d.y) > EPS ? d.y : (d.y >= 0 ? EPS : -EPS);
@@ -54,6 +76,9 @@ bool raymarch(vec3 o, vec3 d, out float o_t, out vec3 o_color, out vec3 o_normal
     if(1.5f * t_coef.y - t_bias.y > t_min) idx ^= 2u, pos.y = 1.5f;
     if(1.5f * t_coef.z - t_bias.z > t_min) idx ^= 4u, pos.z = 1.5f;
 
+    if (t_min >= bvh_t_min) {
+        return false;
+    }
 
     while( scale < STACK_SIZE )
     {
@@ -118,6 +143,10 @@ bool raymarch(vec3 o, vec3 d, out float o_t, out vec3 o_color, out vec3 o_normal
         t_min = tc_max;
         idx ^= step_mask;
 
+        if (t_min >= bvh_t_min) {
+            return false;
+        }
+
         // Proceed with pop if the bit flips disagree with the ray direction.
         if( (idx & step_mask) != 0 )
         {
@@ -149,22 +178,118 @@ bool raymarch(vec3 o, vec3 d, out float o_t, out vec3 o_color, out vec3 o_normal
         }
     }
 
-    vec3 norm, t_corner = t_coef * (pos + scale_exp2) - t_bias;
-    if(t_corner.x > t_corner.y && t_corner.x > t_corner.z)
+    if (scale >= STACK_SIZE || t_min > t_max) {
+        return false;
+    }
+    vec3 norm;
+    vec3 t_corner = t_coef * (pos + scale_exp2) - t_bias;
+    if(t_corner.x > t_corner.y && t_corner.x > t_corner.z) {
         norm = vec3(-1, 0, 0);
-    else if(t_corner.y > t_corner.z)
+    } else if (t_corner.y > t_corner.z) {
         norm = vec3(0, -1, 0);
-    else
+    } else {
         norm = vec3(0, 0, -1);
+    }
     if ((oct_mask & 1u) == 0u) norm.x = -norm.x;
     if ((oct_mask & 2u) == 0u) norm.y = -norm.y;
     if ((oct_mask & 4u) == 0u) norm.z = -norm.z;
+
 
     o_normal = norm;
     o_color = vec3( color & 0xffu, (color >> 8u) & 0xffu, (color >> 16u) & 0xffu) * 0.00392156862745098f; // (...) / 255.0f
     o_t = t_min;
 
-    return scale < STACK_SIZE && t_min <= t_max;
+    return true;
+}
+
+bool ray_sphere_intersect(vec3 o, vec3 d, vec3 c, float r, out float o_t) {
+    o_t = 100000.0;
+    vec3 l = c - o;
+    float adj = dot(l, d);
+    float d2 = dot(l,l) - (adj*adj);
+    float r2 = r*r;
+    if (d2 > r2) {
+        return false;
+    }
+    float thc = sqrt(r2 - d2);
+    float t0 = adj - thc;
+    float t1 = adj + thc;
+    if (t0 < 0.0 && t1 < 0.0) {
+        return false;
+    }
+    o_t = min(t0,t1);
+    return true;
+}
+
+bool bvh_trace_leaf(vec3 o, vec3 d, uint leaf_idx, float min_t, out float o_t, out vec3 o_color, out vec3 o_normal) {
+    BVHLeaf leaf = bvh_leafs[leaf_idx];
+    o = (leaf.inv_model * vec4(o,1.0)).xyz;
+    d = (leaf.inv_model * vec4(d,0.0)).xyz;
+    if (raymarch(o,d,min_t,o_t,o_color,o_normal)) {
+        o_normal = (inverse(leaf.inv_model) * vec4(o_normal, 0.0)).xyz;
+        return true;
+    }
+    return false;
+}
+
+bool bvh_trace(vec3 o, vec3 d, out float o_t, out vec3 o_color, out vec3 o_normal, out vec3 o_dbg) {
+    uint stack[BVH_STACK_SIZE];
+    uint stack_ptr = 0;
+    BVHNode node = bvh_nodes[bvh_root];
+    o_dbg = vec3(0.0,0.0,0.0);
+
+    float min_t = 1000000.0;
+    while (true) {
+        //o_dbg.x += 0.01;
+        bool left_is_leaf = (node.left_child & 0x80000000) != 0;
+        bool left_descend = false;
+        bool right_descend = false;
+        float left_t;
+        float right_t;
+        BVHNode left_node;
+        BVHNode right_node;
+        bool left_svo_hit = false;
+        bool right_svo_hit = false;
+        if (left_is_leaf) {
+            float t;
+            vec3 color, normal;
+            if (bvh_trace_leaf(o,d,node.left_child ^ 0x80000000, min_t, t, color, normal)) {
+                min_t = t;
+                o_t = t;
+                o_color = color;
+                o_normal = normal;
+            }
+            if (bvh_trace_leaf(o,d,node.right_child ^ 0x80000000, min_t, t, color, normal)) {
+                min_t = t;
+                o_t = t;
+                o_color = color;
+                o_normal = normal;
+            }
+        } else {
+            left_node = bvh_nodes[node.left_child];
+            left_descend = ray_sphere_intersect(o, d, left_node.center.xyz, left_node.radius, left_t);
+            right_node = bvh_nodes[node.right_child];
+            right_descend = ray_sphere_intersect(o, d, right_node.center.xyz, right_node.radius, right_t);
+        }
+
+        if (!left_descend && !right_descend) {
+            if (stack_ptr == 0) {
+                break;
+            } else {
+                stack_ptr -= 1;
+                node = bvh_nodes[stack[stack_ptr]];
+            }
+        } else {
+            if (left_descend && right_descend) {
+                stack[stack_ptr++] = left_t < right_t ? node.right_child : node.left_child;
+                node = left_t < right_t ? left_node : right_node;
+            } else {
+                node = left_descend ? left_node : right_node;
+            }
+        }
+    }
+    o_t = min_t;
+    return min_t < 10000.0;
 }
 
 vec3 shade(vec3 color, vec3 normal, vec3 hit_point) {
@@ -180,19 +305,6 @@ vec3 shade(vec3 color, vec3 normal, vec3 hit_point) {
     return color * light_reflected;
 }
 
-bool loop(vec3 o, vec3 d, out float o_t, out vec3 o_color, out vec3 o_normal) {
-    for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 10; j++) {
-            vec3 o2 = vec3(o.x + i, o.y, o.z + j);
-            bool hit = raymarch(o2, d, o_t, o_color, o_normal);
-            if (hit) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
 void main() {
     vec2 uv = (gl_FragCoord.xy + 0.5) / vec2(width,height);
     float x = (2.0 * uv.x - 1.0) * aspect_ratio * fov;
@@ -202,11 +314,14 @@ void main() {
     float t;
     vec3 color;
     vec3 normal;
-    bool hit = loop(camera_position.xyz, dir, t, color, normal);
+    vec3 dbg_color = vec3(0.0);
+    bool hit = bvh_trace(camera_position.xyz, dir, t, color, normal, dbg_color);
     if (hit) {
-        vec3 hit_point = (camera_position.xyz + t * dir);
-        outColor = vec4(shade(color, normal, hit_point),1.0);
+        outColor = vec4((normal + 1.0) * 0.5,1.0);
+        vec3 hit_point = camera_position.xyz + t * dir;
+        //outColor = vec4((normal + 1.0) * 0.5, 1.0);
+        outColor = vec4(shade(color, normal, hit_point), 1.0);
     } else {
-        outColor = vec4(1.0);
+        outColor = vec4(0.0);
     }
 }

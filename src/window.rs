@@ -59,7 +59,7 @@ impl RenderContext {
             format: wgpu::TextureFormat::Bgra8Unorm,
             width,
             height,
-            present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::Immediate,
         };
         let swap_chain = window
             .device
