@@ -181,19 +181,18 @@ bool raymarch(vec3 o, vec3 d, float bvh_t_min, out float o_t, out vec3 o_color, 
     if (scale >= STACK_SIZE || t_min > t_max) {
         return false;
     }
-    vec3 norm;
-    vec3 t_corner = t_coef * (pos + scale_exp2) - t_bias;
-    if(t_corner.x > t_corner.y && t_corner.x > t_corner.z) {
-        norm = vec3(-1, 0, 0);
-    } else if (t_corner.y > t_corner.z) {
-        norm = vec3(0, -1, 0);
-    } else {
-        norm = vec3(0, 0, -1);
-    }
-    if ((oct_mask & 1u) == 0u) norm.x = -norm.x;
-    if ((oct_mask & 2u) == 0u) norm.y = -norm.y;
-    if ((oct_mask & 4u) == 0u) norm.z = -norm.z;
 
+    vec3 t_corner = t_coef * (pos + scale_exp2) - t_bias;
+    int x = int(t_corner.x > t_corner.y && t_corner.x > t_corner.z);
+    int y = int(x == 0 && t_corner.y > t_corner.z);
+    int z = int(x == 0 && y == 0);
+    vec3 mask = vec3(
+            int((oct_mask & 1u) == 0u),
+            int((oct_mask & 2u) == 0u),
+            int((oct_mask & 4u) == 0u)
+    );
+    mask = (mask * 2.0) - 1.0;
+    vec3 norm = mask * vec3(x,y,z);
 
     o_normal = norm;
     o_color = vec3( color & 0xffu, (color >> 8u) & 0xffu, (color >> 16u) & 0xffu) * 0.00392156862745098f; // (...) / 255.0f
