@@ -24,3 +24,13 @@ winit = "0.22"
 
 # cast to glsl uniform
 bytemuck = "1.4.1"
+
+# linalg
+glam = "0.9.4"
+
+# misc
+csv = "1.1.3"
+serde = { version = "1", features = ["derive"] }
+
+[profile.dev]
+opt-level = 3

@@ -1,6 +1,7 @@
 mod render;
 mod shader;
 mod ui;
+mod voxel;
 mod window;
 
 use ui::ImguiContext;
@@ -24,6 +25,18 @@ fn main() {
     let mut img = vec![1.0f32; (4 * width * height) as usize];
 
     let mut renderer = render::Renderer::new(&mut window.device, width, height);
+
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        println!("Need path to model csv.");
+        std::process::exit(1);
+    }
+    let model_path = &args[1];
+    let brick_pool = {
+        let voxel_grid = voxel::Grid::from_csv(model_path.to_string()).unwrap();
+        voxel::BrickPool::from(&voxel_grid)
+    };
+    brick_pool._print_stats();
 
     event_loop.run(move |event, _, control_flow| {
         imgui
