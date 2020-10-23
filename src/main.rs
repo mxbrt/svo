@@ -1,8 +1,4 @@
-mod render;
-mod shader;
-mod ui;
-mod voxel;
-mod window;
+use svo::{render, ui, voxel, window};
 
 use ui::ImguiContext;
 use window::{RenderContext, WindowContext};
