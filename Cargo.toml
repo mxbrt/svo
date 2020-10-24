@@ -25,12 +25,21 @@ winit = "0.22"
 bytemuck = "1.4.1"
 
 # linalg
-glam = "0.9.4"
+simba = {version = "0.2.4", features = ["packed_simd"]}
+nalgebra = "0.22.1"
 
 # misc
 csv = "1.1.3"
 serde = { version = "1", features = ["derive"] }
 libc = "0.2"
+
+[dev-dependencies]
+criterion = "0.3.3"
+rand = "0.7.3"
+
+[[bench]]
+name = "bench_simd"
+harness = false
 
 [profile.dev]
 opt-level = 3

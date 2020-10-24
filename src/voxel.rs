@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::u32;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Voxel {

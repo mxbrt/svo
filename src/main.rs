@@ -1,4 +1,4 @@
-use svo::{render, ui, voxel, window};
+use svo::{render, simd, ui, voxel, window};
 
 use ui::ImguiContext;
 use window::{RenderContext, WindowContext};
@@ -28,11 +28,15 @@ fn main() {
         std::process::exit(1);
     }
     let model_path = &args[1];
-    let brick_pool = {
+    let (brick_pool, points) = {
         let voxel_grid = voxel::Grid::from_csv(model_path.to_string()).unwrap();
-        voxel::BrickPool::from(&voxel_grid)
+        (
+            voxel::BrickPool::from(&voxel_grid),
+            simd::VectorList::from(&voxel_grid),
+        )
     };
     brick_pool._print_stats();
+    points._print_stats();
 
     event_loop.run(move |event, _, control_flow| {
         imgui
