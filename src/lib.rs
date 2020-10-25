@@ -5,4 +5,5 @@ pub mod simd;
 pub mod sparse;
 pub mod ui;
 pub mod voxel;
+pub mod voxel_csv;
 pub mod window;

@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Voxel {
-    x: usize,
-    y: usize,
-    z: usize,
+pub struct Voxel {
+    pub x: usize,
+    pub y: usize,
+    pub z: usize,
 }
 
 pub struct Grid {
@@ -17,6 +17,14 @@ const BRICK_VOLUME: usize = BRICK_SIZE * BRICK_SIZE * BRICK_SIZE;
 const BRICK_N_INTS: usize = BRICK_VOLUME / 32;
 
 impl Grid {
+    pub fn new(size: usize, voxels: &[Voxel]) -> Self {
+        let mut data = vec![vec![vec![false; size]; size]; size];
+        for voxel in voxels {
+            data[voxel.x][voxel.y][voxel.z] = true;
+        }
+        Self { data, size }
+    }
+
     pub fn sample(&self, x: usize, y: usize, z: usize, size: usize) -> bool {
         for x1 in x..x + size {
             for y1 in y..y + size {
@@ -50,20 +58,6 @@ impl Grid {
             true => Some(data),
             false => None,
         }
-    }
-
-    pub fn from_csv(path: String) -> Result<Grid, Box<dyn std::error::Error>> {
-        let mut csv_reader = csv::Reader::from_path(&path)?;
-        let size_start = path.find("_").unwrap() + 1;
-        let size_end = path.find(".").unwrap();
-        let size_str = &path[size_start..size_end];
-        let size = size_str.parse::<usize>().unwrap();
-        let mut data = vec![vec![vec![false; size]; size]; size];
-        for result in csv_reader.deserialize() {
-            let voxel: Voxel = result?;
-            data[voxel.x][voxel.y][voxel.z] = true;
-        }
-        Ok(Grid { data, size })
     }
 }
 

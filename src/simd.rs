@@ -1,7 +1,6 @@
 extern crate nalgebra as na;
 use simba::simd::f32x8;
 
-use crate::morton;
 use crate::voxel;
 
 pub struct VectorList(pub Vec<na::Vector4<f32x8>>);
@@ -35,30 +34,29 @@ impl VectorList {
     }
 }
 
-impl From<&voxel::Grid> for VectorList {
-    fn from(grid: &voxel::Grid) -> Self {
+impl From<&Vec<voxel::Voxel>> for VectorList {
+    fn from(voxels: &Vec<voxel::Voxel>) -> Self {
         let mut simd_vectors = Vec::new();
         let mut xs = [0.0f32; N_LANES];
         let mut ys = [0.0f32; N_LANES];
         let mut zs = [0.0f32; N_LANES];
         let ws = [1.0f32; N_LANES];
         let mut idx = 0;
-        let grid_volume = grid.size.pow(3) as u64;
-        for m in 0..grid_volume {
-            let (x, y, z) = morton::decode_3d(m);
-            if grid.data[x as usize][y as usize][z as usize] {
-                xs[idx] = x as f32;
-                ys[idx] = y as f32;
-                zs[idx] = z as f32;
-                idx += 1;
-            }
-            if idx == N_LANES || (idx > 0 && m == grid_volume - 1) {
+        for voxel in voxels {
+            xs[idx] = voxel.x as f32;
+            ys[idx] = voxel.y as f32;
+            zs[idx] = voxel.z as f32;
+            idx += 1;
+            if idx == N_LANES {
                 simd_vectors.push([xs.into(), ys.into(), zs.into(), ws.into()].into());
                 idx = 0;
                 xs = [0.0f32; N_LANES];
                 ys = [0.0f32; N_LANES];
                 zs = [0.0f32; N_LANES];
             }
+        }
+        if idx > 0 {
+            simd_vectors.push([xs.into(), ys.into(), zs.into(), ws.into()].into());
         }
         Self { 0: simd_vectors }
     }
