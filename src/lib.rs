@@ -1,3 +1,4 @@
+pub mod grid;
 pub mod morton;
 pub mod render;
 pub mod shader;

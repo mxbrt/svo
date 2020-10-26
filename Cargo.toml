@@ -41,5 +41,9 @@ rand = "0.7.3"
 name = "bench_simd"
 harness = false
 
+[[bench]]
+name = "bench_grid_hierarchy"
+harness = false
+
 [profile.dev]
 opt-level = 3
