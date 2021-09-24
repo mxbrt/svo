@@ -85,19 +85,10 @@ impl ImguiContext {
 }
 
 fn compose(ui: &imgui::Ui, delta_time: &std::time::Duration) {
-    let window = imgui::Window::new(im_str!("Hello world"));
+    let window = imgui::Window::new(im_str!("SVO Renderer"));
     window
         .size([300.0, 100.0], Condition::FirstUseEver)
         .build(&ui, || {
-            ui.text(im_str!("Hello world!"));
-            ui.text(im_str!("This...is...imgui-rs on WGPU!"));
-            ui.separator();
-            let mouse_pos = ui.io().mouse_pos;
-            ui.text(im_str!(
-                "Mouse Position: ({:.1},{:.1})",
-                mouse_pos[0],
-                mouse_pos[1]
-            ));
             ui.text(im_str!("Frametime: {:?}", delta_time));
         });
 }
