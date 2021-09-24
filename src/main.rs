@@ -60,18 +60,26 @@ fn main() {
     let mut yaw = 0.0;
     let mut delta = 0.0;
     let mut delta_time = previous.elapsed();
+    let mut rng = rand::thread_rng();
+    let y: f64 = rng.gen(); // generates a float between 0 and 1
 
-    let n = 6;
-    let mut objects = Vec::<(u32, na::Similarity3<f32>)>::new();
+    let n = 8;
+    let mut objects = Vec::<(u32, na::Similarity3<f32>, na::geometry::Rotation3<f32>)>::new();
     for x in 0..n {
         for y in 0..n {
             for z in 0..n {
+                let rotation_speed = 0.001;
                 objects.push((
                     0,
                     na::Similarity3::from_parts(
                         na::Translation3::new(x as f32, y as f32, z as f32),
                         na::geometry::Rotation3::identity().into(),
                         1.0,
+                    ),
+                    na::geometry::Rotation3::from_euler_angles(
+                        (rng.gen::<f32>() - 0.5) * std::f32::consts::PI * rotation_speed,
+                        (rng.gen::<f32>() - 0.5) * std::f32::consts::PI * rotation_speed,
+                        (rng.gen::<f32>() - 0.5) * std::f32::consts::PI * rotation_speed,
                     ),
                 ));
             }
@@ -157,10 +165,7 @@ fn main() {
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
                 let bvh = {
                     for object in &mut objects {
-                        object.1.append_rotation_wrt_point_mut(
-                            &na::geometry::Rotation3::from_euler_angles(0.0, 0.0008, 0.0).into(),
-                            &object.1.isometry.translation.vector.into(),
-                        );
+                        object.1.append_rotation_wrt_center_mut(&object.2.into());
                     }
                     bvh::BoundingVolumeHierarchy::new(&objects)
                 };

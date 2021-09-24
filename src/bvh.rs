@@ -29,9 +29,11 @@ unsafe impl bytemuck::Pod for BVHLeaf {}
 unsafe impl bytemuck::Zeroable for BVHLeaf {}
 
 impl BoundingVolumeHierarchy {
-    pub fn new(objects: &[(u32, na::Similarity3<f32>)]) -> BoundingVolumeHierarchy {
+    pub fn new(
+        objects: &[(u32, na::Similarity3<f32>, na::Rotation3<f32>)],
+    ) -> BoundingVolumeHierarchy {
         let mut morton_leafs = Vec::<(u64, BVHLeaf, na::Similarity3<f32>, f32)>::new();
-        for (address, transform) in objects {
+        for (address, transform, _) in objects {
             let position = transform.isometry.translation.vector * 10.0;
             let scale = transform.scaling();
             let morton = morton::encode_3d(position.x as u64, position.y as u64, position.z as u64);
