@@ -3,6 +3,7 @@ name = "rs-cpu-svo"
 version = "0.1.0"
 authors = ["Max Breitenfeldt <git@mxbr.me>"]
 edition = "2018"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,6 +11,7 @@ edition = "2018"
 na = { package = "nalgebra", version = "0.21.0", features = ["serde-serialize"] }
 serde = "1.0.105"
 csv = "1.1"
+rand = "0.8.4"
 
 # gpu
 futures = "0.3"
@@ -21,7 +23,7 @@ glsl-layout = "0.3.2"
 clipboard = "0.5"
 imgui = "0.3.0"
 imgui-winit-support = "0.3.1"
-imgui-wgpu = { git = "https://github.com/Yatekii/imgui-wgpu-rs" }
+imgui-wgpu = "0.6.0"
 
 # windowing
 winit = "0.21"
