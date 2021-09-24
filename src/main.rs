@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::convert::From;
 use std::f32;
 
@@ -108,8 +109,9 @@ fn main() {
                 event: DeviceEvent::MouseMotion { delta: (x, y) },
                 ..
             } => {
-                pitch = clamp(pitch + y as f32 * delta, -89.0, 89.0);
-                yaw = (yaw + x as f32 * delta) % 360.0;
+                let sensitivity = 0.4;
+                pitch = clamp(pitch + y as f32 * delta * sensitivity, -89.0, 89.0);
+                yaw = (yaw + x as f32 * delta * sensitivity) % 360.0;
             }
             Event::WindowEvent {
                 event:
@@ -125,7 +127,7 @@ fn main() {
                 ..
             } => {
                 let pressed = match state {
-                    ElementState::Pressed => 0.10,
+                    ElementState::Pressed => 0.05,
                     ElementState::Released => 0.0,
                 };
                 match key {
