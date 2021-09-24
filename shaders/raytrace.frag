@@ -177,7 +177,7 @@ bool raymarch(vec3 o, vec3 d, float bvh_t_min, out float o_t, out vec3 o_color, 
             cur = 0;
         }
     }
-
+L
     if (scale >= STACK_SIZE || t_min > t_max) {
         return false;
     }
@@ -292,14 +292,14 @@ bool bvh_trace(vec3 o, vec3 d, out float o_t, out vec3 o_color, out vec3 o_norma
 }
 
 vec3 shade(vec3 color, vec3 normal, vec3 hit_point) {
-    vec3 light_dir = normalize(vec3(-1.0,-1.0,-1.0));
-    float shadow_bias = 0.00001;
+    vec3 light_dir = normalize(vec3(-0.2,1.0,-0.3));
+    float shadow_bias = 0.0001;
     vec3 result;
 
     vec3 shadow_ray_dir = -light_dir;
     float t;
-    float albedo = 1.0;
-    float light_intensity = 4.0;
+    float albedo = 0.8;
+    float light_intensity = 8.0;
     float light_reflected = (albedo / PI) * max(0.0, dot(normal, -light_dir)) * light_intensity;
     return color * light_reflected;
 }
